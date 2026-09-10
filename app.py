@@ -13,15 +13,7 @@ generation_config = {
     "temperature": 0.9, 
     "top_p": 0.95,
 }
-# 讓系統自動抓取你的金鑰所支援的模型清單
-try:
-    available_models = [m.name.replace("models/", "") for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-    # 優先挑選 flash 或 pro 模型，若都沒有則強制使用清單中第一個可用的模型
-    target_model = next((m for m in available_models if "flash" in m or "pro" in m), available_models[0])
-except:
-    target_model = "gemini-1.5-flash"
-    
-model = genai.GenerativeModel(target_model, generation_config=generation_config)
+model = genai.GenerativeModel('gemini-3.6-flash', generation_config=generation_config)
 # ==========================================
 # 初始化歷史紀錄的暫存空間
 # ==========================================
