@@ -7,7 +7,7 @@ import uuid
 # ==========================================
 # 1. 設定 AI API Key 
 # ==========================================
-genai.configure(api_key="你的_API_KEY_貼在這裡")
+genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 
 generation_config = {
     "temperature": 0.9, 
