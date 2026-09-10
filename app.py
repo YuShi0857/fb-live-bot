@@ -13,7 +13,7 @@ generation_config = {
     "temperature": 0.9, 
     "top_p": 0.95,
 }
-model = genai.GenerativeModel('gemini-3.6-flash', generation_config=generation_config)
+model = genai.GenerativeModel('gemini-1.5-flash', generation_config=generation_config)
 
 # ==========================================
 # 初始化歷史紀錄的暫存空間
