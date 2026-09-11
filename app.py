@@ -1,7 +1,7 @@
 import streamlit as st
 import google.generativeai as genai
 from PIL import Image
-import uuid # 新增：用來產生每筆紀錄的專屬 ID
+import uuid
 
 # ==========================================
 # 1. 網頁基本設定
@@ -25,7 +25,6 @@ model = genai.GenerativeModel('gemini-3.6-flash', generation_config=generation_c
 if "history" not in st.session_state:
     st.session_state.history = []
 
-# 單筆刪除的處理函式
 def delete_record(record_id):
     st.session_state.history = [r for r in st.session_state.history if r["id"] != record_id]
 
@@ -95,26 +94,26 @@ if generate_clicked:
                 5. 稱呼限制 (極重要)：**絕對禁止在留言中使用「小編」這個詞**！如果有需要稱呼對方，請隨機使用以下稱呼：【{host_instruction}】。大約每 10 則留言出現 1 次稱呼即可 (約10%機率)，其餘 90% 留言請直接講重點，不要加任何稱呼。
                 6. 留言者人設 (極重要)：請將這 {num_comments} 則留言，分配給以下這些不同身分的買家來發言：【{persona_instruction}】。請生動地模仿這些族群各自的口吻與關注點，讓留言區看起來是形形色色的人在互動。
                 7. 表情符號：{'絕對不要使用表情符號' if emoji_freq == 0 else f'適度使用表情符號 (活躍度 {emoji_freq}/5)'}。
-                8. 風格分配：請大約依照以下比例混搭撰寫：
+                8. 標點符號排版 (極重要)：為了模仿最真實的打字習慣，請讓大約一半 (50%) 的留言維持正常的標點符號；**另一半 (50%) 的留言請「完全不要使用任何標點符號」，遇到需要停頓或斷句的地方，請直接用「空格 (半形空白)」代替**。
+                9. 風格分配：請大約依照以下比例混搭撰寫：
                    - 渴望型(求關注/想買/正向驚呼)：{style_desire}份
                    - 划算型(覺得超值/直接下單/詢問組合優惠)：{style_value}份
                    - 功效/體驗型(好用/有感)：{style_effect}份
                 """
                 
                 if "曾經熱賣" in is_repurchase:
-                    prompt += "\n9. 【特別要求：老客回購】：這款商品曾大熱賣，請在部分留言大量加入「之前買過超好用」、「這次要多囤幾組」、「終於等到了」、「上次沒搶到這次一定要買」等熱情回購語氣。"
+                    prompt += "\n10. 【特別要求：老客回購】：這款商品曾大熱賣，請在部分留言大量加入「之前買過超好用」、「這次要多囤幾組」、「終於等到了」、「上次沒搶到這次一定要買」等熱情回購語氣。"
                 else:
-                    prompt += "\n9. 【特別要求：初次上架】：這是新品，請在部分留言加入「想試試看」、「感覺很厲害」、「坐等介紹」、「這什麼好特別喔」等期待嘗鮮語氣。"
+                    prompt += "\n10. 【特別要求：初次上架】：這是新品，請在部分留言加入「想試試看」、「感覺很厲害」、「坐等介紹」、「這什麼好特別喔」等期待嘗鮮語氣。"
                 
                 inputs = [prompt]
                 if uploaded_file is not None:
                     image_data = Image.open(uploaded_file)
                     inputs.append(image_data)
-                    prompt += "\n10. 【圖片輔助】：我有附上商品圖片，請觀察圖片中的特徵、顏色、包裝或文字，把這些細節融入留言中，讓留言更真實。"
+                    prompt += "\n11. 【圖片輔助】：我有附上商品圖片，請觀察圖片中的特徵、顏色、包裝或文字，把這些細節融入留言中，讓留言更真實。"
 
                 response = model.generate_content(inputs)
                 
-                # 寫入歷史紀錄，並給予專屬 ID 以利單筆刪除
                 st.session_state.history.insert(0, {
                     "id": str(uuid.uuid4()),
                     "product": product_name if product_name else "📸 圖片商品",
@@ -135,7 +134,6 @@ if st.session_state.history:
     st.markdown("### ✨ 最新生成結果")
     latest_record = st.session_state.history[0]
     st.info(f"當前商品：{latest_record['product']}")
-    # 直接在主畫面印出最新留言，方便立刻複製
     st.write(latest_record['content'])
 
 # ==========================================
@@ -154,6 +152,5 @@ if not st.session_state.history:
 else:
     for record in st.session_state.history:
         with st.sidebar.expander(f"📂 {record['product']}"):
-            # 單筆刪除按鈕
             st.button("❌ 刪除此筆", key=f"del_{record['id']}", on_click=delete_record, args=(record['id'],))
             st.write(record['content'])
