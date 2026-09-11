@@ -14,7 +14,7 @@ st.title("🔥 FB 直播留言自動生成器 (極速進階版)")
 # 讀取 Streamlit Secrets 中的 API Key
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 
-# 模型設定 (依照 Google 系統要求使用 3.6-flash，享有高額度與視覺辨識能力)
+# 模型設定 (依照 Google 系統要求使用 3.6-flash)
 generation_config = {
   "temperature": 0.9,
   "top_p": 0.95,
@@ -34,6 +34,8 @@ col_left, col_right = st.columns([1.2, 1])
 
 with col_left:
     st.markdown("### 📦 步驟一：商品資訊")
+    # 新增直播主稱呼欄位
+    host_name = st.text_input("直播主稱呼/綽號 (可選填，多個可用逗號分隔，例如：明哥、闆娘)")
     product_name = st.text_input("商品名稱 (例如：大黑天唐卡、冰絲寬褲、魚油)")
     product_desc = st.text_area("產品特色/補充說明 (可選填，直接貼上廠商文案)", height=100)
     
@@ -45,7 +47,6 @@ with col_left:
     uploaded_file = st.file_uploader("📸 貼上截圖或上傳商品照 (不知道名稱直接傳圖，AI 會自己看！)", type=['png', 'jpg', 'jpeg'])
     
     st.markdown("### ⚙️ 步驟二：留言參數設定")
-    # 擴充至 300 則
     num_comments = st.slider("要生成幾則留言？", min_value=5, max_value=300, value=20)
     emoji_freq = st.slider("表情符號頻率 (0 代表不要，數值越大代表越多)", 0, 5, 2)
     length_req = st.selectbox("字數長度要求", ["長短隨機交錯 (5-50字，最自然)", "極短 (5-15字)", "一般長度 (15-30字)"])
@@ -54,7 +55,7 @@ with col_right:
     st.markdown("### 🎨 步驟三：留言風格比例設定")
     st.caption("系統會自動依比例分配，不需剛好湊滿 100")
     style_desire = st.number_input("渴望型比例 (求關注/想買)", min_value=0, value=20, step=10)
-    style_value = st.number_input("划算型比例 (CP值/問價格)", min_value=0, value=20, step=10)
+    style_value = st.number_input("划算型比例 (稱讚CP值高/直接下單)", min_value=0, value=20, step=10)
     style_effect = st.number_input("功效/體驗型比例 (好用/有感)", min_value=0, value=60, step=10)
 
 st.markdown("---")
@@ -76,39 +77,42 @@ if generate_clicked:
     else:
         with st.spinner("AI 靈感湧現中，請稍候... (若數量較多請耐心等待)"):
             try:
-                # 建立 AI 指令 (Prompt) - 加入了嚴格的禁忌命令
+                # 處理直播主稱呼邏輯
+                host_instruction = host_name if host_name else "主播、老闆、闆娘"
+
+                # 建立 AI 指令 (Prompt)
                 prompt = f"""
-                你現在是一位專業的 FB 直播互動小編。請幫我生成 {num_comments} 則觀眾在看直播時會留的留言。
+                你現在是一位專業的 FB 直播互動觀眾。請幫我生成 {num_comments} 則看直播時會留的留言。
                 
                 【商品資訊】
                 商品名稱：{product_name if product_name else '請參考圖片推測商品'}
                 商品特色：{product_desc if product_desc else '無'}
                 
-                【留言要求】
+                【嚴格留言要求】
                 1. 總數：必須產生 {num_comments} 則留言，請用條列式輸出。
                 2. 字數長度：{length_req}。
-                3. 語氣：貼近台灣 FB 直播買家習慣（接地氣、口語化、不要太像機器人）。
-                4. 禁忌命令：絕對禁止生成只有「+1」、「+2」或單純「商品名+1」的留言！每一則都必須是完整的對話，要有具體的問題、稱讚、期待或互動心得。
-                5. 表情符號：{'絕對不要使用表情符號' if emoji_freq == 0 else f'適度使用表情符號 (活躍度 {emoji_freq}/5)'}。
-                6. 風格分配：請大約依照以下比例混搭撰寫：
-                   - 渴望型(求關注/想買)：{style_desire}份
-                   - 划算型(CP值/問價格)：{style_value}份
+                3. 語氣限制 (極重要)：貼近台灣 FB 直播買家習慣。**絕對禁止出現任何質疑、懷疑或比價的負面語氣**（例如：「有比較便宜嗎」、「外面賣更便宜」、「別騙我喔」等）。所有留言都必須是正向支持、稱讚划算、期待或決定下單。
+                4. 禁忌命令：絕對禁止生成只有「+1」、「+2」或單純「商品名+1」的無意義留言！每一則都必須是完整的對話。
+                5. 稱呼限制 (極重要)：**絕對禁止在留言中使用「小編」這個詞**！如果有需要稱呼對方，請隨機使用以下稱呼：【{host_instruction}】。為了保持自然，**大約每 10 則留言出現 1 次稱呼即可 (約10%機率)**，其餘 90% 留言請直接講重點，完全不要加任何稱呼。
+                6. 表情符號：{'絕對不要使用表情符號' if emoji_freq == 0 else f'適度使用表情符號 (活躍度 {emoji_freq}/5)'}。
+                7. 風格分配：請大約依照以下比例混搭撰寫：
+                   - 渴望型(求關注/想買/正向驚呼)：{style_desire}份
+                   - 划算型(覺得超值/直接下單/詢問組合優惠)：{style_value}份
                    - 功效/體驗型(好用/有感)：{style_effect}份
                 """
                 
                 # 附加回購語氣
                 if "曾經熱賣" in is_repurchase:
-                    prompt += "\n7. 【特別要求：老客回購】：這款商品曾大熱賣，請在部分留言大量加入「之前買過超好用」、「這次要多囤幾組」、「終於等到了」、「上次沒搶到這次一定要買」等熱情回購語氣。"
+                    prompt += "\n8. 【特別要求：老客回購】：這款商品曾大熱賣，請在部分留言大量加入「之前買過超好用」、「這次要多囤幾組」、「終於等到了」、「上次沒搶到這次一定要買」等熱情回購語氣。"
                 else:
-                    prompt += "\n7. 【特別要求：初次上架】：這是新品，請在部分留言加入「想試試看」、「感覺很厲害」、「坐等介紹」、「這什麼好特別喔」等期待嘗鮮語氣。"
+                    prompt += "\n8. 【特別要求：初次上架】：這是新品，請在部分留言加入「想試試看」、「感覺很厲害」、「坐等介紹」、「這什麼好特別喔」等期待嘗鮮語氣。"
                 
                 # 準備輸入資料 (文字 + 圖片)
                 inputs = [prompt]
                 if uploaded_file is not None:
-                    # 如果有上傳圖片，把圖片轉換給 Gemini
                     image_data = Image.open(uploaded_file)
                     inputs.append(image_data)
-                    prompt += "\n8. 【圖片輔助】：我有附上商品圖片，請觀察圖片中的特徵、顏色、包裝或文字，把這些細節融入留言中，讓留言更真實。"
+                    prompt += "\n9. 【圖片輔助】：我有附上商品圖片，請觀察圖片中的特徵、顏色、包裝或文字，把這些細節融入留言中，讓留言更真實。"
 
                 # 呼叫 Gemini API
                 response = model.generate_content(inputs)
