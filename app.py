@@ -58,7 +58,7 @@ current_gold = sys_config.get("gold_price", 10000)
 current_margin = sys_config.get("b2b_margin", 35.0)
 
 # ==========================================
-# 🌟 資安防護：登入憑證即時核對 (修復型別比對錯誤)
+# 🌟 資安防護：登入憑證即時核對 (防呆自動踢除)
 # ==========================================
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
@@ -66,13 +66,12 @@ if "logged_in" not in st.session_state:
 if st.session_state.logged_in:
     acc = st.session_state.get("account_id")
     saved_pw = st.session_state.get("session_pw") 
-    # 🌟 確保密碼比對時型別一致，避免 JSON 存成數字導致被誤踢
     if acc not in users_db or str(users_db[acc].get("password")) != str(saved_pw):
         st.session_state.logged_in = False
         st.error("⚠️ 您的登入狀態已失效（可能因密碼修改或帳號權限異動），請重新登入！")
 
 # ==========================================
-# 🌟 頁碼回呼機制 (取代 st.rerun 防止記憶體清除)
+# 🌟 頁碼回呼機制
 # ==========================================
 if "client_page" not in st.session_state: st.session_state.client_page = 1
 if "admin_page" not in st.session_state: st.session_state.admin_page = 1
@@ -457,8 +456,7 @@ if st.session_state.role == "client":
 
 df_clean["狀態"] = df_clean["品名款式"].apply(lambda x: prod_settings.get(x, {}).get("status", "🆕 未上架"))
 df_clean["B2C狀態"] = df_clean["品名款式"].apply(lambda x: prod_settings.get(x, {}).get("b2c_status", "❌ 隱藏"))
-
-df_clean["👁️️ 指定帳號"] = df_clean["品名款式"].apply(lambda x: prod_settings.get(x, {}).get("allowed_clients", ""))
+df_clean["👁️ 指定帳號"] = df_clean["品名款式"].apply(lambda x: prod_settings.get(x, {}).get("allowed_clients", ""))
 df_clean["💰 手動批發價"] = df_clean["品名款式"].apply(lambda x: prod_settings.get(x, {}).get("fixed_price", 0))
 
 df_clean["🔥廠商批發價"] = np.where(
@@ -503,7 +501,7 @@ if st.session_state.role == "client":
     </style>
     """, unsafe_allow_html=True)
 
-    tab1, tab2, tab3 = st.tabs(["🛍️️ 線上批發型錄", "🛒 我的購物車與結帳", "📜 我的訂單紀錄"])
+    tab1, tab2, tab3 = st.tabs(["🛍️ 線上批發型錄", "🛒 我的購物車與結帳", "📜 我的訂單紀錄"])
     with tab1:
         col_info, col_btn = st.columns([4, 1])
         with col_info:
@@ -525,7 +523,7 @@ if st.session_state.role == "client":
             user = st.session_state.account_id
             is_restricted = users_db.get(user, {}).get("is_restricted", False)
             status = row["狀態"]
-            allowed_str = str(row["👁️️ 指定帳號"]).strip()
+            allowed_str = str(row["👁️ 指定帳號"]).strip()
             
             if row.get("🔒B2B自動鎖定", False): return False
             if status == "🗑️ 隱藏": return False
@@ -546,7 +544,6 @@ if st.session_state.role == "client":
             st.markdown("### 🛍️ 挑選商品 (即時鎖庫存)")
             col_p_prev, col_p_info, col_p_next = st.columns([1, 2, 1])
             with col_p_prev:
-                # 🌟 使用 on_click 回呼函數取代 st.rerun
                 st.button("⬅️ 上一頁", key="c_prev_top", disabled=st.session_state.client_page <= 1, use_container_width=True, on_click=prev_c_page)
             with col_p_info: st.markdown(f"<div style='text-align: center; padding-top: 5px;'><b>第 {st.session_state.client_page} / {total_pages} 頁</b> (共 {total_items} 件)</div>", unsafe_allow_html=True)
             with col_p_next:
@@ -877,36 +874,86 @@ elif st.session_state.role == "admin":
         total_pages_admin = max(1, int(np.ceil(total_items_admin / ITEMS_PER_PAGE)))
         if st.session_state.admin_page > total_pages_admin: st.session_state.admin_page = 1
         
-        col_a_prev, col_a_info, col_a_next = st.columns([1, 2, 1])
-        with col_a_prev:
-            st.button("⬅️ 上一頁", key="a_prev_top", disabled=st.session_state.admin_page <= 1, use_container_width=True, on_click=prev_a_page)
-        with col_a_info: st.markdown(f"<div style='text-align: center; padding-top: 5px;'><b>第 {st.session_state.admin_page} / {total_pages_admin} 頁</b> (共 {total_items_admin} 件)</div>", unsafe_allow_html=True)
-        with col_a_next:
-            st.button("下一頁 ➡️", key="a_next_top", disabled=st.session_state.admin_page >= total_pages_admin, use_container_width=True, on_click=next_a_page)
-
         start_idx_admin = (st.session_state.admin_page - 1) * ITEMS_PER_PAGE
         admin_page_df = df_display.iloc[start_idx_admin : start_idx_admin + ITEMS_PER_PAGE]
-            
-        edited_df = st.data_editor(
-            admin_page_df, use_container_width=True, hide_index=True, height=600, 
-            disabled=["產品照片", "商品專屬編號", "🛡️ 防虧狀態", "黃金重量(錢)", "網頁可用庫存", "💡今日動態成本", "🏪動態零售價", "🔥廠商批發價", "💰實賺金額(歷史比)", "📈實賺毛利率(%)"],
-            column_config={
-                "狀態": st.column_config.SelectboxColumn(options=["✅ 已上架", "🆕 未上架", "🗑️ 隱藏"]), 
-                "B2C狀態": st.column_config.SelectboxColumn(options=["✅ 顯示", "❌ 隱藏"]), 
-                "產品照片": st.column_config.ImageColumn(width="small"),
-                "黃金重量(錢)": st.column_config.NumberColumn("重量(錢)", format="%.2f"),
-                "🏪動態零售價": st.column_config.NumberColumn("🏪 B2C賣價", format="$%d")
-            }
-        )
-        save_df_settings(edited_df)
 
-        st.divider()
-        col_a_prev_b, col_a_info_b, col_a_next_b = st.columns([1, 2, 1])
-        with col_a_prev_b:
-            st.button("⬅️ 上一頁", key="a_prev_bottom", disabled=st.session_state.admin_page <= 1, use_container_width=True, on_click=prev_a_page)
-        with col_a_info_b: st.markdown(f"<div style='text-align: center; padding-top: 5px;'><b>第 {st.session_state.admin_page} / {total_pages_admin} 頁</b></div>", unsafe_allow_html=True)
-        with col_a_next_b:
-            st.button("下一頁 ➡️", key="a_next_bottom", disabled=st.session_state.admin_page >= total_pages_admin, use_container_width=True, on_click=next_a_page)
+        # 🌟 老闆視角切換開關 (橫向顯示)
+        admin_view_mode = st.radio("👀 老闆專屬顯示模式：", ["📝 表格快速編輯 (適合批次修改)", "🖼️ 大圖示檢視 (適合檢視圖片)"], horizontal=True)
+
+        if "表格" in admin_view_mode:
+            # 原本的資料表模式
+            col_a_prev, col_a_info, col_a_next = st.columns([1, 2, 1])
+            with col_a_prev:
+                st.button("⬅️ 上一頁", key="a_prev_top", disabled=st.session_state.admin_page <= 1, use_container_width=True, on_click=prev_a_page)
+            with col_a_info: st.markdown(f"<div style='text-align: center; padding-top: 5px;'><b>第 {st.session_state.admin_page} / {total_pages_admin} 頁</b> (共 {total_items_admin} 件)</div>", unsafe_allow_html=True)
+            with col_a_next:
+                st.button("下一頁 ➡️", key="a_next_top", disabled=st.session_state.admin_page >= total_pages_admin, use_container_width=True, on_click=next_a_page)
+
+            edited_df = st.data_editor(
+                admin_page_df, use_container_width=True, hide_index=True, height=600, 
+                disabled=["產品照片", "商品專屬編號", "🛡️ 防虧狀態", "黃金重量(錢)", "網頁可用庫存", "💡今日動態成本", "🏪動態零售價", "🔥廠商批發價", "💰實賺金額(歷史比)", "📈實賺毛利率(%)"],
+                column_config={
+                    "狀態": st.column_config.SelectboxColumn(options=["✅ 已上架", "🆕 未上架", "🗑️ 隱藏"]), 
+                    "B2C狀態": st.column_config.SelectboxColumn(options=["✅ 顯示", "❌ 隱藏"]), 
+                    "產品照片": st.column_config.ImageColumn(width="small"),
+                    "黃金重量(錢)": st.column_config.NumberColumn("重量(錢)", format="%.2f"),
+                    "🏪動態零售價": st.column_config.NumberColumn("🏪 B2C賣價", format="$%d")
+                }
+            )
+            save_df_settings(edited_df)
+
+            st.divider()
+            col_a_prev_b, col_a_info_b, col_a_next_b = st.columns([1, 2, 1])
+            with col_a_prev_b:
+                st.button("⬅️ 上一頁", key="a_prev_bottom", disabled=st.session_state.admin_page <= 1, use_container_width=True, on_click=prev_a_page)
+            with col_a_info_b: st.markdown(f"<div style='text-align: center; padding-top: 5px;'><b>第 {st.session_state.admin_page} / {total_pages_admin} 頁</b></div>", unsafe_allow_html=True)
+            with col_a_next_b:
+                st.button("下一頁 ➡️", key="a_next_bottom", disabled=st.session_state.admin_page >= total_pages_admin, use_container_width=True, on_click=next_a_page)
+
+        else:
+            # 🌟 新增：老闆後台的大圖示模式
+            @st.dialog("🖼️ 商品大圖與詳細資訊")
+            def admin_show_details(row):
+                if row['產品照片']: st.image(row['產品照片'], use_container_width=True)
+                else: st.info("此商品目前無圖片")
+                st.markdown(f"<h3 style='text-align: center;'>{row['品名款式']}</h3>", unsafe_allow_html=True)
+                st.markdown(f"<div style='text-align: center; color: #555;'>📦 庫存：<b>{int(row['網頁可用庫存'])}</b> 件 ｜ ⚖️ 重量：<b>{row['黃金重量(錢)']}</b> 錢</div>", unsafe_allow_html=True)
+                st.divider()
+                st.markdown(f"**💡 今日總成本：** NT$ {int(row['💡今日動態成本']):,}")
+                st.markdown(f"**🏪 B2C 零售價：** NT$ {int(row['🏪動態零售價']):,}")
+                st.markdown(f"**🔥 B2B 批發價：** <span style='color: #FF4B4B; font-weight: bold;'>NT$ {int(row['🔥廠商批發價']):,}</span>", unsafe_allow_html=True)
+                st.markdown(f"**🛡️ 系統狀態：** {row['🛡️ 防虧狀態']}")
+
+            col_a_prev, col_a_info, col_a_next = st.columns([1, 2, 1])
+            with col_a_prev:
+                st.button("⬅️ 上一頁", key="a_prev_top_g", disabled=st.session_state.admin_page <= 1, use_container_width=True, on_click=prev_a_page)
+            with col_a_info: st.markdown(f"<div style='text-align: center; padding-top: 5px;'><b>第 {st.session_state.admin_page} / {total_pages_admin} 頁</b> (共 {total_items_admin} 件)</div>", unsafe_allow_html=True)
+            with col_a_next:
+                st.button("下一頁 ➡️", key="a_next_top_g", disabled=st.session_state.admin_page >= total_pages_admin, use_container_width=True, on_click=next_a_page)
+
+            cols_per_row = 4
+            for i in range(0, len(admin_page_df), cols_per_row):
+                row_items = admin_page_df.iloc[i:i+cols_per_row]
+                cols = st.columns(cols_per_row, gap="medium")
+                for idx, (_, row) in enumerate(row_items.iterrows()):
+                    with cols[idx]:
+                        with st.container(border=True):
+                            if row['產品照片']: st.image(row['產品照片'], use_container_width=True)
+                            else: st.markdown("<div style='height:150px; display:flex; align-items:center; justify-content:center; background-color:#333; color:#CCC; border-radius: 8px;'>無照片</div>", unsafe_allow_html=True)
+                            
+                            st.markdown(f"<div style='font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;' title='{row['品名款式']}'>{row['品名款式']}</div>", unsafe_allow_html=True)
+                            st.markdown(f"<div style='color:#FF4B4B; font-weight:bold; margin-bottom:10px;'>🔥 批發價: ${int(row['🔥廠商批發價']):,}</div>", unsafe_allow_html=True)
+                            
+                            if st.button("🔍 置中放大檢視", key=f"admin_btn_{row['品名款式']}", use_container_width=True):
+                                admin_show_details(row)
+            
+            st.divider()
+            col_a_prev_b, col_a_info_b, col_a_next_b = st.columns([1, 2, 1])
+            with col_a_prev_b:
+                st.button("⬅️ 上一頁", key="a_prev_bottom_g", disabled=st.session_state.admin_page <= 1, use_container_width=True, on_click=prev_a_page)
+            with col_a_info_b: st.markdown(f"<div style='text-align: center; padding-top: 5px;'><b>第 {st.session_state.admin_page} / {total_pages_admin} 頁</b></div>", unsafe_allow_html=True)
+            with col_a_next_b:
+                st.button("下一頁 ➡️", key="a_next_bottom_g", disabled=st.session_state.admin_page >= total_pages_admin, use_container_width=True, on_click=next_a_page)
 
     with t_orders:
         status_counts = {
